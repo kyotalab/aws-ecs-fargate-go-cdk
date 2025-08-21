@@ -39,8 +39,11 @@ func TestNetworkStack(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Given: テスト用アプリケーション作成
-			app := helpers.CreateTestAppForUnitTest(tc.environment)
-
+			app := helpers.CreateTestApp(&helpers.TestAppConfig{
+				Environment: tc.environment,
+				Region:      "ap-northeast-1",
+				Account:     "654654358776",
+			})
 			// When: NetworkStackを作成（実装後にコメントアウト解除）
 			// stack := stacks.NewNetworkStack(app, "TestNetworkStack", &stacks.NetworkStackProps{
 			// 	Environment: tc.environment,
@@ -62,7 +65,9 @@ func TestNetworkStack(t *testing.T) {
 
 func TestNetworkStack_SecurityGroups(t *testing.T) {
 	// Given
-	app := helpers.CreateTestAppForUnitTest("test")
+	app := helpers.CreateTestApp(&helpers.TestAppConfig{
+		Environment: "test",
+	})
 
 	// When: NetworkStackを作成
 	// stack := stacks.NewNetworkStack(app, "TestNetworkStack", nil)
@@ -76,7 +81,7 @@ func TestNetworkStack_SecurityGroups(t *testing.T) {
 
 func TestNetworkStack_RouteTable(t *testing.T) {
 	// Given
-	app := helpers.CreateTestAppWithEnv()
+	app := helpers.CreateTestApp(nil)
 
 	// When: NetworkStackを作成
 	// stack := stacks.NewNetworkStack(app, "TestNetworkStack", nil)

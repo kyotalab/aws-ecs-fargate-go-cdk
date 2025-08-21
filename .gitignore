@@ -19,9 +19,3 @@
 cdk.out
 
 docs
-.env
-.env.local
-.env.*.local
-
-# AWS credentials
-.aws/
