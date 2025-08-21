@@ -1,12 +1,26 @@
-# Welcome to your CDK Go project!
+# AWS ECS Fargate Infrastructure with CDK (Go)
 
-This is a blank project for CDK development with Go.
+## Overview
+Personal learning project for building serverless container infrastructure on AWS ECS Fargate using CDK with Go language.
 
-The `cdk.json` file tells the CDK toolkit how to execute your app.
+## Architecture
+- **Container Platform**: Amazon ECS with AWS Fargate
+- **Infrastructure as Code**: AWS CDK (Go)
+- **Database**: Amazon Aurora MySQL
+- **Cache**: Amazon ElastiCache for Redis
+- **Storage**: Amazon S3
+- **Load Balancer**: Application Load Balancer
+- **CDN**: Amazon CloudFront
 
-## Useful commands
+## Features
+- ECS Fargate serverless containers
+- Multi-tier web application deployment
+- Test-driven infrastructure development
+- Security best practices implementation
+- Auto-scaling and high availability
 
- * `cdk deploy`      deploy this stack to your default AWS account/region
- * `cdk diff`        compare deployed stack with current state
- * `cdk synth`       emits the synthesized CloudFormation template
- * `go test`         run unit tests
+## Learning Focus
+- Serverless containers with ECS Fargate
+- Go language CDK development
+- Container orchestration without server management
+- Cloud-native architecture design
