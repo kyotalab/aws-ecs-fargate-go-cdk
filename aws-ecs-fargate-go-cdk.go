@@ -9,8 +9,10 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/aws/aws-cdk-go/awscdk/v2"
-	// "github.com/aws/aws-cdk-go/awscdk/v2/awssqs"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awssqs"
 	"github.com/aws/constructs-go/constructs/v10"
 	"github.com/aws/jsii-runtime-go"
 )
@@ -29,9 +31,11 @@ func NewAwsEcsFargateGoCdkStack(scope constructs.Construct, id string, props *Aw
 	// The code that defines your stack goes here
 
 	// example resource
-	// queue := awssqs.NewQueue(stack, jsii.String("AwsEcsFargateGoCdkQueue"), &awssqs.QueueProps{
-	// 	VisibilityTimeout: awscdk.Duration_Seconds(jsii.Number(300)),
-	// })
+	queue := awssqs.NewQueue(stack, jsii.String("AwsEcsFargateGoCdkQueue"), &awssqs.QueueProps{
+		VisibilityTimeout: awscdk.Duration_Seconds(jsii.Number(300)),
+	})
+
+	fmt.Printf("%v\n", queue)
 
 	return stack
 }
