@@ -1,3 +1,11 @@
+// Package main provides AWS ECS Fargate infrastructure using CDK
+//
+// DISCLAIMER: This code is for educational purposes only.
+// Not suitable for production use without proper review and customization.
+//
+// Copyright (c) 2025 kyotalab
+// Licensed under MIT License
+
 package main
 
 import (
