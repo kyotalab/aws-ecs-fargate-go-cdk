@@ -42,7 +42,7 @@ func TestNetworkStack(t *testing.T) {
 			app := helpers.CreateTestApp(&helpers.TestAppConfig{
 				Environment: tc.environment,
 				Region:      "ap-northeast-1",
-				Account:     "654654358776",
+				Account:     "123456789012",
 			})
 			// When: NetworkStackを作成（実装後にコメントアウト解除）
 			// stack := stacks.NewNetworkStack(app, "TestNetworkStack", &stacks.NetworkStackProps{
