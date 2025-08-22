@@ -55,7 +55,7 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">aws-ecs-fargate-go-cdk/tests/helpers/assertions.go (0.0%)</option>
+				<option value="file0">aws-ecs-fargate-go-cdk/tests/helpers/assertions.go (31.8%)</option>
 				
 				<option value="file1">aws-ecs-fargate-go-cdk/tests/helpers/test_utils.go (50.0%)</option>
 				
@@ -85,21 +85,27 @@ type VPCAssertions struct {
 }
 
 // NewVPCAssertions VPCアサーションインスタンスを作成
-func NewVPCAssertions(stack awscdk.Stack) *VPCAssertions <span class="cov0" title="0">{
+func NewVPCAssertions(stack awscdk.Stack) *VPCAssertions <span class="cov8" title="1">{
         return &amp;VPCAssertions{
                 template: assertions.Template_FromStack(stack, nil),
         }
 }</span>
 
 // HasSubnetCount 指定された数のサブネットが存在することを確認
-func (v *VPCAssertions) HasSubnetCount(count int) *VPCAssertions <span class="cov0" title="0">{
+func (v *VPCAssertions) HasSubnetCount(count int) *VPCAssertions <span class="cov8" title="1">{
         v.template.ResourceCountIs(jsii.String("AWS::EC2::Subnet"), jsii.Number(count))
         return v
 }</span>
 
 // HasInternetGateway インターネットゲートウェイが存在することを確認
-func (v *VPCAssertions) HasInternetGateway() *VPCAssertions <span class="cov0" title="0">{
+func (v *VPCAssertions) HasInternetGateway() *VPCAssertions <span class="cov8" title="1">{
         v.template.ResourceCountIs(jsii.String("AWS::EC2::InternetGateway"), jsii.Number(1))
+        return v
+}</span>
+
+// HasNATGateways 指定された数のNAT Gatewayが存在することを確認
+func (v *VPCAssertions) HasNATGateways(count int) *VPCAssertions <span class="cov8" title="1">{
+        v.template.ResourceCountIs(jsii.String("AWS::EC2::NatGateway"), jsii.Number(count))
         return v
 }</span>
 
@@ -153,6 +159,49 @@ func (r *RDSAssertions) HasEngineVersion(version string) *RDSAssertions <span cl
                 "EngineVersion": version,
         })
         return r
+}</span>
+
+// SecurityGroupAssertions セキュリティグループのアサーション
+type SecurityGroupAssertions struct {
+        template assertions.Template
+}
+
+// NewSecurityGroupAssertions セキュリティグループアサーションインスタンスの作成
+func NewSecurityGroupAssertions(stack awscdk.Stack) *SecurityGroupAssertions <span class="cov0" title="0">{
+        return &amp;SecurityGroupAssertions{
+                template: assertions.Template_FromStack(stack, nil),
+        }
+}</span>
+
+// HasSecurityGroupWithIngressRule 指定されたIngressルールを持つセキュリティグループが存在することを確認
+func (s *SecurityGroupAssertions) HasSecurityGroupWithIngressRule(port int, protocol string, cidr string) *SecurityGroupAssertions <span class="cov0" title="0">{
+        s.template.HasResourceProperties(jsii.String("AWS::EC2::SecurityGroup"), map[string]interface{}{
+                "SecurityGroupIngress": assertions.Match_ArrayWith(&amp;[]interface{}{
+                        map[string]interface{}{
+                                "IpProtocol": protocol,
+                                "FromPort":   port,
+                                "ToPort":     port,
+                                "CidrIp":     cidr,
+                        },
+                }),
+        })
+        return s
+}</span>
+
+// HasALBSecurityGroup ALB用のセキュリティグループが存在することを確認
+func (s *SecurityGroupAssertions) HasALBSecurityGroup() *SecurityGroupAssertions <span class="cov0" title="0">{
+        s.template.HasResourceProperties(jsii.String("AWS::EC2::SecurityGroup"), map[string]interface{}{
+                "GroupDescription": assertions.Match_StringLikeRegexp(jsii.String("*ALB*")),
+                "SecurityGroupIngress": assertions.Match_ArrayWith(&amp;[]interface{}{
+                        map[string]interface{}{
+                                "IpProtocol": "tcp",
+                                "FromPort":   80,
+                                "ToPort":     80,
+                                "CidrIp":     "0.0.0.0/0",
+                        },
+                }),
+        })
+        return s
 }</span>
 </pre>
 		
