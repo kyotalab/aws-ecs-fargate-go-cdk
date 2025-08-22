@@ -23,7 +23,7 @@ func TestApplicationStack_BasicCreation(t *testing.T) {
 		VpcId:            "vpc-12345", // Mock VPC ID
 		DatabaseEndpoint: "mock-aurora-endpoint.cluster-xyz.ap-northeast-1.rds.amazonaws.com",
 		RedisEndpoint:    "mock-redis-endpoint.cache.amazonaws.com",
-		TestEngFlag:      true,
+		TestEnvFlag:      true,
 	})
 
 	// Then: 基本的なECSクラスターが作成されることを確認
@@ -43,7 +43,7 @@ func TestApplicationStack_LoadBalancer(t *testing.T) {
 	stack := stacks.NewApplicationStack(app, "TestApplicationStack", &stacks.ApplicationStackProps{
 		Environment: "dev",
 		VpcId:       "vpc-12345",
-		TestEngFlag: true,
+		TestEnvFlag: true,
 	})
 
 	// Then: ALBの確認
@@ -55,13 +55,19 @@ func TestApplicationStack_LoadBalancer(t *testing.T) {
 
 func TestApplicationStack_ECR(t *testing.T) {
 	// Given
-	app := helpers.CreateTestApp(nil)
+	app := helpers.CreateTestApp(&helpers.TestAppConfig{
+		Environment: "dev",
+	})
 
 	// When: ApplicationStackを作成
-	// stack := stacks.NewApplicationStack(app, "TestApplicationStack", nil)
+	stack := stacks.NewApplicationStack(app, "TestApplicationStack", &stacks.ApplicationStackProps{
+		Environment: "dev",
+		VpcId:       "vpc-12345",
+		TestEnvFlag: true,
+	})
 
 	// Then: ECRリポジトリの確認
-	// helpers.AssertStackHasResource(t, stack, "AWS::ECR::Repository", 1)
+	helpers.AssertStackHasResource(t, stack, "AWS::ECR::Repository", 1)
 
-	assert.NotNil(t, app)
+	assert.NotNil(t, stack)
 }

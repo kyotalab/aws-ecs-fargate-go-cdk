@@ -19,7 +19,7 @@ type ApplicationStackProps struct {
 	VpcId            string
 	DatabaseEndpoint string
 	RedisEndpoint    string
-	TestEngFlag      bool
+	TestEnvFlag      bool
 }
 
 // VPCReferenceProps インターフェースの実装
@@ -32,7 +32,7 @@ func (p *ApplicationStackProps) GetVpcId() string {
 }
 
 func (p *ApplicationStackProps) IsTestEnvironment() bool {
-	return p.TestEngFlag
+	return p.TestEnvFlag
 }
 
 // ApplicationStack ApplicationStackの構造体
@@ -75,6 +75,9 @@ func NewApplicationStack(scope constructs.Construct, id string, props *Applicati
 		ContainerInsights: jsii.Bool(envConfig.Name == "production"),
 	})
 
+	// ECR Repository作成
+	ecrRepository := createECRRepository(stack, props.Environment, envConfig)
+
 	// Application Load Balancer作成
 	alb := createApplicationLoadBalancer(stack, vpc, props.Environment)
 
@@ -84,12 +87,97 @@ func NewApplicationStack(scope constructs.Construct, id string, props *Applicati
 	// ALBにTarget Groupを関連付け
 	addALBListener(alb, targetGroup)
 
+	// Cross-stack出力の作成
+	createApplicationStackOutputs(stack, ecrRepository, alb, targetGroup, props.Environment)
+
 	// タグ追加
 	addApplicationStackTags(stack, envConfig)
 	awscdk.Tags_Of(cluster).Add(jsii.String("Component"), jsii.String("Application"), nil)
 	awscdk.Tags_Of(alb).Add(jsii.String("Component"), jsii.String("LoadBalancer"), nil)
+	awscdk.Tags_Of(ecrRepository).Add(jsii.String("Component"), jsii.String("ContainerRegistry"), nil)
 
 	return stack
+}
+
+// createECRRepository ECR Repositoryを作成
+func createECRRepository(stack awscdk.Stack, environment string, envConfig *config.EnvironmentConfig) awsecr.Repository {
+	return awsecr.NewRepository(stack, jsii.String("ServiceECRRepository"), &awsecr.RepositoryProps{
+		RepositoryName: jsii.String("service-" + environment),
+
+		// イメージスキャンを有効化
+		ImageScanOnPush: jsii.Bool(true),
+
+		// ライフサイクルポリシー（環境別設定）
+		LifecycleRules: getECRLifecycleRules(envConfig.Name),
+
+		// 削除保護（本番環境のみ）
+		RemovalPolicy: func() awscdk.RemovalPolicy {
+			if envConfig.Name == "production" {
+				return awscdk.RemovalPolicy_RETAIN
+			}
+			return awscdk.RemovalPolicy_DESTROY
+		}(),
+
+		// イメージタグの可変性（本番環境では不変にすることを推奨）
+		ImageTagMutability: func() awsecr.TagMutability {
+			if envConfig.Name == "production" {
+				return awsecr.TagMutability_IMMUTABLE
+			}
+			return awsecr.TagMutability_MUTABLE
+		}(),
+	})
+}
+
+// getECRLifecycleRules 環境別のECRライフサイクルルールを取得
+func getECRLifecycleRules(environment string) *[]*awsecr.LifecycleRule {
+	switch environment {
+	case "development":
+		// 開発環境：最新5つのイメージのみ保持
+		return &[]*awsecr.LifecycleRule{
+			{
+				Description:   jsii.String("Keep only 5 latest images"),
+				MaxImageCount: jsii.Number(5),
+				RulePriority:  jsii.Number(1),
+				TagStatus:     awsecr.TagStatus_ANY,
+			},
+		}
+	case "staging":
+		// ステージング環境：最新10つのイメージを保持
+		return &[]*awsecr.LifecycleRule{
+			{
+				Description:   jsii.String("Keep only 10 latest images"),
+				MaxImageCount: jsii.Number(10),
+				RulePriority:  jsii.Number(1),
+				TagStatus:     awsecr.TagStatus_ANY,
+			},
+		}
+	case "production":
+		// 本番環境：タグ付きイメージは30日、未タグは1日
+		return &[]*awsecr.LifecycleRule{
+			{
+				Description:  jsii.String("Keep tagged images for 30 days"),
+				MaxImageAge:  awscdk.Duration_Days(jsii.Number(30)),
+				RulePriority: jsii.Number(1),
+				TagStatus:    awsecr.TagStatus_TAGGED,
+			},
+			{
+				Description:  jsii.String("Keep untagged images for 1 day"),
+				MaxImageAge:  awscdk.Duration_Days(jsii.Number(1)),
+				RulePriority: jsii.Number(2),
+				TagStatus:    awsecr.TagStatus_UNTAGGED,
+			},
+		}
+	default:
+		// デフォルト：開発環境と同じ
+		return &[]*awsecr.LifecycleRule{
+			{
+				Description:   jsii.String("Keep only 5 latest images"),
+				MaxImageCount: jsii.Number(5),
+				RulePriority:  jsii.Number(1),
+				TagStatus:     awsecr.TagStatus_ANY,
+			},
+		}
+	}
 }
 
 // createApplicationLoadBalancer Application Load Balancerを作成
@@ -163,4 +251,41 @@ func addApplicationStackTags(stack awscdk.Stack, envConfig *config.EnvironmentCo
 	}
 	awscdk.Tags_Of(stack).Add(jsii.String("StackType"), jsii.String("Application"), nil)
 	awscdk.Tags_Of(stack).Add(jsii.String("ManagedBy"), jsii.String("CDK"), nil)
+}
+
+// createApplicationStackOutputs Cross-stack出力を作成
+func createApplicationStackOutputs(
+	stack awscdk.Stack,
+	ecrRepository awsecr.Repository,
+	alb awselasticloadbalancingv2.ApplicationLoadBalancer,
+	targetGroup awselasticloadbalancingv2.ApplicationTargetGroup,
+	environment string,
+) {
+	// ECRリポジトリURI出力
+	awscdk.NewCfnOutput(stack, jsii.String("ECRRepositoryURI"), &awscdk.CfnOutputProps{
+		Value:       ecrRepository.RepositoryUri(),
+		Description: jsii.String("ECR Repository URI for container images"),
+		ExportName:  jsii.String("Service-" + environment + "-ECR-URI"),
+	})
+
+	// ALB DNS名出力
+	awscdk.NewCfnOutput(stack, jsii.String("LoadBalancerDNS"), &awscdk.CfnOutputProps{
+		Value:       alb.LoadBalancerDnsName(),
+		Description: jsii.String("Application Load Balancer DNS name"),
+		ExportName:  jsii.String("Service-" + environment + "-ALB-DNS"),
+	})
+
+	// ALB ARN出力
+	awscdk.NewCfnOutput(stack, jsii.String("LoadBalancerArn"), &awscdk.CfnOutputProps{
+		Value:       alb.LoadBalancerArn(),
+		Description: jsii.String("Application Load Balancer ARN"),
+		ExportName:  jsii.String("Service-" + environment + "-ALB-ARN"),
+	})
+
+	// Target Group ARN出力
+	awscdk.NewCfnOutput(stack, jsii.String("TargetGroupArn"), &awscdk.CfnOutputProps{
+		Value:       targetGroup.TargetGroupArn(),
+		Description: jsii.String("Target Group ARN for ECS service"),
+		ExportName:  jsii.String("Service-" + environment + "-TG-ARN"),
+	})
 }
