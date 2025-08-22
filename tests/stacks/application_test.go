@@ -35,16 +35,22 @@ func TestApplicationStack_BasicCreation(t *testing.T) {
 
 func TestApplicationStack_LoadBalancer(t *testing.T) {
 	// Given
-	app := helpers.CreateTestApp(nil)
+	app := helpers.CreateTestApp(&helpers.TestAppConfig{
+		Environment: "dev",
+	})
 
 	// When: ApplicationStackを作成
-	// stack := stacks.NewApplicationStack(app, "TestApplicationStack", nil)
+	stack := stacks.NewApplicationStack(app, "TestApplicationStack", &stacks.ApplicationStackProps{
+		Environment: "dev",
+		VpcId:       "vpc-12345",
+		TestEngFlag: true,
+	})
 
 	// Then: ALBの確認
-	// helpers.AssertStackHasResource(t, stack, "AWS::ElasticLoadBalancingV2::LoadBalancer", 1)
-	// helpers.AssertStackHasResource(t, stack, "AWS::ElasticLoadBalancingV2::TargetGroup", 1)
+	helpers.AssertStackHasResource(t, stack, "AWS::ElasticLoadBalancingV2::LoadBalancer", 1)
+	helpers.AssertStackHasResource(t, stack, "AWS::ElasticLoadBalancingV2::TargetGroup", 1)
 
-	assert.NotNil(t, app)
+	assert.NotNil(t, stack)
 }
 
 func TestApplicationStack_ECR(t *testing.T) {
