@@ -10,9 +10,10 @@ import (
 
 // TestAppConfig テストアプリケーションの設定
 type TestAppConfig struct {
-	Environment string
-	Region      string
-	Account     string
+	Environment       string
+	Region            string
+	Account           string
+	IsTestEnvironment bool
 }
 
 // CreateTestApp テスト用のCDKアプリケーションを作成
