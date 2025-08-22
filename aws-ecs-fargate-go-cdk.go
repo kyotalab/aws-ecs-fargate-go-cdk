@@ -46,9 +46,9 @@ func main() {
 		StackProps: awscdk.StackProps{
 			Env: env(),
 		},
-		Environment:       environment,
-		VpcId:             "vpc-from-network-stack", // Cross-stack参照で自動解決
-		IsTestEnvironment: false,                    // 実際のデプロイ環境
+		Environment: environment,
+		VpcId:       "vpc-from-network-stack", // Cross-stack参照で自動解決
+		TestEnvFlag: false,                    // 実際のデプロイ環境
 	})
 
 	// 3. 将来のApplicationStackをここに追加

@@ -14,18 +14,18 @@ import (
 
 // TestAppConfig テストアプリケーションの設定
 type TestAppConfig struct {
-	Environment       string
-	Region            string
-	Account           string
-	IsTestEnvironment bool // テスト環境フラグ追加
+	Environment string
+	Region      string
+	Account     string
+	TestEnvFlag bool // テスト環境フラグ追加
 }
 
 func CreateTestAppForStorageStack(environment string) awscdk.App {
 	return helpers.CreateTestApp(&helpers.TestAppConfig{
-		Environment:       environment,
-		Region:            "ap-northeast-1",
-		Account:           "123456789012",
-		IsTestEnvironment: true,
+		Environment: environment,
+		Region:      "ap-northeast-1",
+		Account:     "123456789012",
+		TestEnvFlag: true,
 	})
 }
 
@@ -39,9 +39,9 @@ func TestStorageStack_BasicCreation(t *testing.T) {
 
 	// When: StorageStackを作成（テスト環境フラグ追加）
 	stack := stacks.NewStorageStack(app, "TestStorageStack", &stacks.StorageStackProps{
-		Environment:       "dev",
-		VpcId:             "vpc-12345", // Mock VPC ID
-		IsTestEnvironment: true,        // テスト環境フラグ
+		Environment: "dev",
+		VpcId:       "vpc-12345", // Mock VPC ID
+		TestEnvFlag: true,        // テスト環境フラグ
 	})
 
 	// Then: 基本的なAuroraクラスターが作成されることを確認
@@ -91,9 +91,9 @@ func TestStorageStack_EnvironmentConfigurations(t *testing.T) {
 
 			// When: StorageStackを作成
 			stack := stacks.NewStorageStack(app, "TestStorageStack", &stacks.StorageStackProps{
-				Environment:       tc.environment,
-				VpcId:             "vpc-12345",
-				IsTestEnvironment: true, // テスト環境フラグ
+				Environment: tc.environment,
+				VpcId:       "vpc-12345",
+				TestEnvFlag: true, // テスト環境フラグ
 			})
 
 			// Then: Aurora設定の確認
@@ -122,9 +122,9 @@ func TestStorageStack_ElastiCache(t *testing.T) {
 
 	// When: StorageStackを作成
 	stack := stacks.NewStorageStack(app, "TestStorageStack", &stacks.StorageStackProps{
-		Environment:       "dev",
-		VpcId:             "vpc-12345",
-		IsTestEnvironment: true, // テスト環境フラグ
+		Environment: "dev",
+		VpcId:       "vpc-12345",
+		TestEnvFlag: true, // テスト環境フラグ
 	})
 
 	// Then: ElastiCacheクラスターの確認
@@ -185,9 +185,9 @@ func TestStorageStack_ElastiCacheConfigurations(t *testing.T) {
 
 			// When
 			stack := stacks.NewStorageStack(app, "TestStorageStack", &stacks.StorageStackProps{
-				Environment:       tc.environment,
-				VpcId:             "vpc-12345",
-				IsTestEnvironment: true,
+				Environment: tc.environment,
+				VpcId:       "vpc-12345",
+				TestEnvFlag: true,
 			})
 
 			// Then
@@ -215,9 +215,9 @@ func TestStorageStack_S3Buckets(t *testing.T) {
 
 	// When: StorageStackを作成
 	stack := stacks.NewStorageStack(app, "TestStorageStack", &stacks.StorageStackProps{
-		Environment:       "dev",
-		VpcId:             "vpc-12345",
-		IsTestEnvironment: true, // テスト環境フラグ
+		Environment: "dev",
+		VpcId:       "vpc-12345",
+		TestEnvFlag: true, // テスト環境フラグ
 	})
 
 	// Then: S3バケットの確認（静的アセット、ログ、バックアップ用）
@@ -287,9 +287,9 @@ func TestStorageStack_SecuritySettings(t *testing.T) {
 
 	// When
 	stack := stacks.NewStorageStack(app, "TestStorageStack", &stacks.StorageStackProps{
-		Environment:       "prod",
-		VpcId:             "vpc-12345",
-		IsTestEnvironment: true, // テスト環境フラグ
+		Environment: "prod",
+		VpcId:       "vpc-12345",
+		TestEnvFlag: true, // テスト環境フラグ
 	})
 
 	// Then
@@ -358,9 +358,9 @@ func TestStorageStack_InstanceTypes(t *testing.T) {
 
 			// When
 			stack := stacks.NewStorageStack(app, "TestStorageStack", &stacks.StorageStackProps{
-				Environment:       tc.environment,
-				VpcId:             "vpc-12345",
-				IsTestEnvironment: true, // テスト環境フラグ
+				Environment: tc.environment,
+				VpcId:       "vpc-12345",
+				TestEnvFlag: true, // テスト環境フラグ
 			})
 
 			// Then: RDS設定の確認
@@ -412,9 +412,9 @@ func TestStorageStack_BackupConfiguration(t *testing.T) {
 
 			// When
 			stack := stacks.NewStorageStack(app, "TestStorageStack", &stacks.StorageStackProps{
-				Environment:       tc.environment,
-				VpcId:             "vpc-12345",
-				IsTestEnvironment: true, // テスト環境フラグ
+				Environment: tc.environment,
+				VpcId:       "vpc-12345",
+				TestEnvFlag: true, // テスト環境フラグ
 			})
 
 			// Then
@@ -445,9 +445,9 @@ func TestStorageStack_ErrorHandling(t *testing.T) {
 	// When & Then: 無効な環境でpanicが発生することを確認
 	assert.Panics(t, func() {
 		stacks.NewStorageStack(app, "TestStorageStack", &stacks.StorageStackProps{
-			Environment:       "invalid-environment",
-			VpcId:             "vpc-12345",
-			IsTestEnvironment: true,
+			Environment: "invalid-environment",
+			VpcId:       "vpc-12345",
+			TestEnvFlag: true,
 		})
 	}, "Should panic with invalid environment")
 

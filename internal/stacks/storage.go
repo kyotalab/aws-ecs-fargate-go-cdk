@@ -23,7 +23,20 @@ type StorageStackProps struct {
 	VpcId                 string   // Cross-stack参照用
 	PrivateSubnetIds      []string // プライベートサブネットID
 	DatabaseSecurityGroup string   // データベース用セキュリティグループ
-	IsTestEnvironment     bool     // テスト環境フラグ
+	TestEnvFlag           bool     // テスト環境フラグ
+}
+
+// VPCReferenceProps インターフェースの実装
+func (p *StorageStackProps) GetEnvironment() string {
+	return p.Environment
+}
+
+func (p *StorageStackProps) GetVpcId() string {
+	return p.VpcId
+}
+
+func (p *StorageStackProps) IsTestEnvironment() bool {
+	return p.TestEnvFlag
 }
 
 // StorageStackOutputs StorageStackの出力値
@@ -67,16 +80,16 @@ func NewStorageStack(scope constructs.Construct, id string, props *StorageStackP
 	}
 
 	// VPCの参照を取得（テスト環境対応）
-	vpc := getVPCReference(stack, props)
+	vpc := getVPCReferenceForStorage(stack, props)
 
 	// データベースサブネットグループ作成
-	dbSubnetGroup := createDatabaseSubnetGroup(stack, envConfig, vpc, props.IsTestEnvironment)
+	dbSubnetGroup := createDatabaseSubnetGroup(stack, envConfig, vpc, props.TestEnvFlag)
 
 	// Aurora MySQL Cluster作成
 	auroraCluster := createAuroraCluster(stack, envConfig, vpc, dbSubnetGroup)
 
 	// ElastiCache Redis作成
-	elastiCache := createElastiCacheCluster(stack, envConfig, props.IsTestEnvironment)
+	elastiCache := createElastiCacheCluster(stack, envConfig, props.TestEnvFlag)
 
 	// S3 Buckets作成
 	staticBucket, logsBucket, backupsBucket := createS3Buckets(stack, envConfig)
@@ -104,113 +117,8 @@ func NewStorageStack(scope constructs.Construct, id string, props *StorageStackP
 	return stack
 }
 
-// getVPCReference Cross-stack参照でVPCを取得（テスト環境対応）
-func getVPCReference(stack awscdk.Stack, props *StorageStackProps) awsec2.IVpc {
-	// テスト環境の場合は、モックVPCを作成
-	if props.IsTestEnvironment {
-		return createMockVPC(stack)
-	}
-
-	// 実際のVPC IDが提供された場合（実環境でのテスト）
-	if props.VpcId != "" && props.VpcId != "vpc-from-network-stack" && props.VpcId != "vpc-12345" {
-		return awsec2.Vpc_FromLookup(stack, jsii.String("ExistingVPC"), &awsec2.VpcLookupOptions{
-			VpcId: jsii.String(props.VpcId),
-		})
-	}
-
-	// 実環境デプロイ：VPC Lookupでタグベース検索（推奨アプローチ）
-	// この方法により、ルートテーブルIDも自動的に取得され、警告が解決されます
-	// return awsec2.Vpc_FromLookup(stack, jsii.String("NetworkStackVPC"), &awsec2.VpcLookupOptions{
-	// 	Tags: &map[string]*string{
-	// 		"Environment": jsii.String("production"), // 実際のタグ値
-	// 		"Component":   jsii.String("Network"),    // 実際のタグ値
-	// 		"ManagedBy":   jsii.String("CDK"),        // 実際のタグ値
-	// 	},
-	// })
-
-	// Cross-stack参照版（NetworkStackと同時synthが可能）
-	envName := props.Environment
-	if envName == "prod" {
-		envName = "production"
-	}
-
-	vpcId := awscdk.Fn_ImportValue(jsii.String("Service-" + envName + "-VpcId"))
-
-	// サブネットIDを個別にインポート
-	privateSubnetId1 := awscdk.Fn_Select(jsii.Number(0),
-		awscdk.Fn_Split(jsii.String(","),
-			awscdk.Fn_ImportValue(jsii.String("Service-"+envName+"-PrivateSubnetIds")), nil))
-	privateSubnetId2 := awscdk.Fn_Select(jsii.Number(1),
-		awscdk.Fn_Split(jsii.String(","),
-			awscdk.Fn_ImportValue(jsii.String("Service-"+envName+"-PrivateSubnetIds")), nil))
-
-	publicSubnetId1 := awscdk.Fn_Select(jsii.Number(0),
-		awscdk.Fn_Split(jsii.String(","),
-			awscdk.Fn_ImportValue(jsii.String("Service-"+envName+"-PublicSubnetIds")), nil))
-	publicSubnetId2 := awscdk.Fn_Select(jsii.Number(1),
-		awscdk.Fn_Split(jsii.String(","),
-			awscdk.Fn_ImportValue(jsii.String("Service-"+envName+"-PublicSubnetIds")), nil))
-
-	return awsec2.Vpc_FromVpcAttributes(stack, jsii.String("ImportedVPC"), &awsec2.VpcAttributes{
-		VpcId: vpcId,
-		AvailabilityZones: &[]*string{
-			jsii.String("ap-northeast-1a"),
-			jsii.String("ap-northeast-1c"),
-		},
-
-		// 個別のサブネットIDを指定
-		PrivateSubnetIds: &[]*string{
-			privateSubnetId1,
-			privateSubnetId2,
-		},
-		PublicSubnetIds: &[]*string{
-			publicSubnetId1,
-			publicSubnetId2,
-		},
-
-		// ルートテーブルIDも追加（警告軽減のため）
-		PrivateSubnetRouteTableIds: &[]*string{
-			awscdk.Fn_Select(jsii.Number(0),
-				awscdk.Fn_Split(jsii.String(","),
-					awscdk.Fn_ImportValue(jsii.String("Service-"+envName+"-PrivateRouteTableIds")), nil)),
-			awscdk.Fn_Select(jsii.Number(1),
-				awscdk.Fn_Split(jsii.String(","),
-					awscdk.Fn_ImportValue(jsii.String("Service-"+envName+"-PrivateRouteTableIds")), nil)),
-		},
-		PublicSubnetRouteTableIds: &[]*string{
-			awscdk.Fn_Select(jsii.Number(0),
-				awscdk.Fn_Split(jsii.String(","),
-					awscdk.Fn_ImportValue(jsii.String("Service-"+envName+"-PublicRouteTableIds")), nil)),
-			awscdk.Fn_Select(jsii.Number(1),
-				awscdk.Fn_Split(jsii.String(","),
-					awscdk.Fn_ImportValue(jsii.String("Service-"+envName+"-PublicRouteTableIds")), nil)),
-		},
-	})
-}
-
-// createMockVPC テスト環境用のモックVPCを作成
-func createMockVPC(stack awscdk.Stack) awsec2.IVpc {
-	// テスト環境では実際のVPCを作成せず、属性のみ提供
-	return awsec2.Vpc_FromVpcAttributes(stack, jsii.String("TestVPC"), &awsec2.VpcAttributes{
-		VpcId: jsii.String("vpc-test-12345"),
-		AvailabilityZones: &[]*string{
-			jsii.String("ap-northeast-1a"),
-			jsii.String("ap-northeast-1c"),
-		},
-		PrivateSubnetIds: &[]*string{
-			jsii.String("subnet-test-private-1"),
-			jsii.String("subnet-test-private-2"),
-		},
-		PublicSubnetIds: &[]*string{
-			jsii.String("subnet-test-public-1"),
-			jsii.String("subnet-test-public-2"),
-		},
-		// Isolatedサブネットも追加
-		IsolatedSubnetIds: &[]*string{
-			jsii.String("subnet-test-isolated-1"),
-			jsii.String("subnet-test-isolated-2"),
-		},
-	})
+func getVPCReferenceForStorage(stack awscdk.Stack, props *StorageStackProps) awsec2.IVpc {
+	return GetVPCReference(stack, props)
 }
 
 // createDatabaseSubnetGroup データベースサブネットグループを作成（テスト環境対応）
