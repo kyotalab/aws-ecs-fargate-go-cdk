@@ -11,6 +11,7 @@ package main
 import (
 	"aws-ecs-fargate-go-cdk/internal/stacks"
 	"fmt"
+	"os"
 
 	"github.com/aws/aws-cdk-go/awscdk/v2"
 	"github.com/aws/jsii-runtime-go"
@@ -70,29 +71,36 @@ func main() {
 	app.Synth(nil)
 }
 
+// getEnvironmentConfig 環境設定を動的に取得（ハードコーディングなし版）
+func getEnvironmentConfig() *awscdk.Environment {
+	// 環境変数から取得
+	account := os.Getenv("CDK_DEFAULT_ACCOUNT")
+	region := os.Getenv("CDK_DEFAULT_REGION")
+
+	// 環境変数が設定されていない場合のエラーハンドリング
+	if account == "" {
+		fmt.Fprintf(os.Stderr, "❌ Error: CDK_DEFAULT_ACCOUNT environment variable is not set\n")
+		fmt.Fprintf(os.Stderr, "💡 Please set: export CDK_DEFAULT_ACCOUNT=your-account-id\n")
+		os.Exit(1)
+	}
+
+	if region == "" {
+		fmt.Fprintf(os.Stderr, "❌ Error: CDK_DEFAULT_REGION environment variable is not set\n")
+		fmt.Fprintf(os.Stderr, "💡 Please set: export CDK_DEFAULT_REGION=ap-northeast-1\n")
+		os.Exit(1)
+	}
+
+	fmt.Printf("🔧 Using AWS Account: %s, Region: %s\n", account, region)
+
+	return &awscdk.Environment{
+		Account: jsii.String(account),
+		Region:  jsii.String(region),
+	}
+}
+
 // env determines the AWS environment (account+region) in which our stack is to
 // be deployed. For more information see: https://docs.aws.amazon.com/cdk/latest/guide/environments.html
 func env() *awscdk.Environment {
-	// If unspecified, this stack will be "environment-agnostic".
-	// Account/Region-dependent features and context lookups will not work, but a
-	// single synthesized template can be deployed anywhere.
-	//---------------------------------------------------------------------------
-	return nil
-
-	// Uncomment if you know exactly what account and region you want to deploy
-	// the stack to. This is the recommendation for production stacks.
-	//---------------------------------------------------------------------------
-	// return &awscdk.Environment{
-	//  Account: jsii.String("123456789012"),
-	//  Region:  jsii.String("us-east-1"),
-	// }
-
-	// Uncomment to specialize this stack for the AWS Account and Region that are
-	// implied by the current CLI configuration. This is recommended for dev
-	// stacks.
-	//---------------------------------------------------------------------------
-	// return &awscdk.Environment{
-	//  Account: jsii.String(os.Getenv("CDK_DEFAULT_ACCOUNT")),
-	//  Region:  jsii.String(os.Getenv("CDK_DEFAULT_REGION")),
-	// }
+	// VPC Lookup使用時は、明示的なアカウント・リージョン設定が必要
+	return getEnvironmentConfig()
 }

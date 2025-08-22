@@ -122,7 +122,8 @@ func addVPCTags(vpc awsec2.Vpc, envConfig *config.EnvironmentConfig) {
 		awscdk.Tags_Of(vpc).Add(jsii.String(key), jsii.String(value), nil)
 	}
 
-	// 追加のネットワーク固有タグ
+	// VPC Lookup用の検索タグを追加
+	awscdk.Tags_Of(vpc).Add(jsii.String("Name"), jsii.String("Service-"+envConfig.Name+"-VPC"), nil)
 	awscdk.Tags_Of(vpc).Add(jsii.String("Component"), jsii.String("Network"), nil)
 	awscdk.Tags_Of(vpc).Add(jsii.String("ManagedBy"), jsii.String("CDK"), nil)
 }
@@ -166,6 +167,12 @@ func createStackOutputs(stack awscdk.Stack, vpc awsec2.Vpc, securityGroups *netw
 		publicSubnetIds[i] = subnet.SubnetId()
 	}
 
+	// プライベートルートテーブルID収集
+	privateRouteTableIds := make([]*string, len(*vpc.PrivateSubnets()))
+	for i, subnet := range *vpc.PrivateSubnets() {
+		privateRouteTableIds[i] = subnet.RouteTable().RouteTableId()
+	}
+
 	awscdk.NewCfnOutput(stack, jsii.String("PrivateSubnetIds"), &awscdk.CfnOutputProps{
 		Value:       awscdk.Fn_Join(jsii.String(","), &privateSubnetIds),
 		Description: jsii.String("Private Subnet IDs"),
@@ -176,5 +183,12 @@ func createStackOutputs(stack awscdk.Stack, vpc awsec2.Vpc, securityGroups *netw
 		Value:       awscdk.Fn_Join(jsii.String(","), &publicSubnetIds),
 		Description: jsii.String("Public Subnet IDs"),
 		ExportName:  jsii.String("Service-" + environment + "-PublicSubnetIds"),
+	})
+
+	// プライベートルートテーブルID出力（新規追加）
+	awscdk.NewCfnOutput(stack, jsii.String("PrivateRouteTableIds"), &awscdk.CfnOutputProps{
+		Value:       awscdk.Fn_Join(jsii.String(","), &privateRouteTableIds),
+		Description: jsii.String("Private Route Table IDs"),
+		ExportName:  jsii.String("Service-" + environment + "-PrivateRouteTableIds"),
 	})
 }
