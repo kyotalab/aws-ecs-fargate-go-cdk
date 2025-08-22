@@ -52,24 +52,34 @@ func main() {
 	})
 
 	// 3. 将来のApplicationStackをここに追加
-	// applicationStack := stacks.NewApplicationStack(app, "ApplicationStack", &stacks.ApplicationStackProps{
-	// 	StackProps: awscdk.StackProps{
-	// 		Env: env(),
-	// 	},
-	// 	Environment: environment,
-	// 	VpcId: networkStack.VpcId(),
-	// 	DatabaseEndpoint: storageStack.DatabaseEndpoint(),
-	// })
+	applicationStack := stacks.NewApplicationStack(app, "ApplicationStack", &stacks.ApplicationStackProps{
+		StackProps: awscdk.StackProps{
+			Env: env(),
+		},
+		Environment:      environment,
+		VpcId:            "vpc-from-network-stack", // Cross-stack参照で自動解決
+		DatabaseEndpoint: *awscdk.Fn_ImportValue(jsii.String("service-" + environment + "-Aurora-Endpoint")),
+		RedisEndpoint:    *awscdk.Fn_ImportValue(jsii.String("service-" + environment + "-Redis-Endpoint")),
+		TestEnvFlag:      false,
+	})
 
 	// Stack間の依存関係を設定
 	storageStack.AddDependency(networkStack, nil)
-	// applicationStack.AddDependency(storageStack, nil)
+	applicationStack.AddDependency(storageStack, nil)
 
 	fmt.Printf("✅ NetworkStack created for environment: %s\n", environment)
 	fmt.Printf("✅ StorageStack created for environment: %s\n", environment)
 
 	app.Synth(nil)
 }
+
+// func getDatabaseEndpoint(environment string, isTestEnvironment bool) string {
+// 	if isTestEnvironment {
+// 		return "mock-aurora-endpoint.cluster-xyz.ap-northeast-1.rds.amazonaws.com"
+// 	}
+// 	// 実環境ではCross-stack参照
+// 	return *awscdk.Fn_ImportValue(jsii.String("service-" + environment + "-Aurora-Endpoint"))
+// }
 
 // getEnvironmentConfig 環境設定を動的に取得（ハードコーディングなし版）
 func getEnvironmentConfig() *awscdk.Environment {

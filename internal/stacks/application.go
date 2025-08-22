@@ -72,7 +72,13 @@ func NewApplicationStack(scope constructs.Construct, id string, props *Applicati
 		ClusterName: jsii.String("service-" + props.Environment + "-cluster"),
 
 		// コンテナインサイト有効化（本番環境のみ）
-		ContainerInsights: jsii.Bool(envConfig.Name == "production"),
+
+		ContainerInsightsV2: func() awsecs.ContainerInsights {
+			if envConfig.Name == "production" {
+				return awsecs.ContainerInsights_ENHANCED // 本番環境では拡張モニタリング
+			}
+			return awsecs.ContainerInsights_DISABLED // 開発・ステージング環境では無効
+		}(),
 	})
 
 	// ECR Repository作成
@@ -159,6 +165,12 @@ func getECRLifecycleRules(environment string) *[]*awsecr.LifecycleRule {
 				MaxImageAge:  awscdk.Duration_Days(jsii.Number(30)),
 				RulePriority: jsii.Number(1),
 				TagStatus:    awsecr.TagStatus_TAGGED,
+				// TagPrefixListを追加してエラーを解決
+				TagPrefixList: &[]*string{
+					jsii.String("v"),      // v1.0.0, v2.0.0 等のバージョンタグ
+					jsii.String("prod"),   // prod-xxx 等の本番タグ
+					jsii.String("stable"), // stable-xxx 等の安定版タグ
+				},
 			},
 			{
 				Description:  jsii.String("Keep untagged images for 1 day"),
