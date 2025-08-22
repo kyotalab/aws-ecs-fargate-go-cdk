@@ -22,16 +22,42 @@ func NewNetworkStack(scope constructs.Construct, id string, props *NetworkStackP
 	}
 	stack := awscdk.NewStack(scope, &id, &sprops)
 
-	// 最小限のVPC作成（Green Phaseでテストを通すため）
-	vpcCidr := "10.0.0.0/16" // デフォルト値
-	if props != nil && props.VpcCidr != "" {
-		vpcCidr = props.VpcCidr
+	// プロパティのバリデーション
+	if props == nil {
+		panic("NetworkStackProps is required")
+	}
+	if props.VpcCidr == "" {
+		props.VpcCidr = "10.0.0.0/16" // デフォルト値
+	}
+	if props.Environment == "" {
+		props.Environment = "dev" // デフォルト値
 	}
 
-	awsec2.NewVpc(stack, jsii.String("ServiceVPC"), &awsec2.VpcProps{
-		IpAddresses: awsec2.IpAddresses_Cidr(jsii.String(vpcCidr)),
+	vpc := awsec2.NewVpc(stack, jsii.String("ServiceVPC"), &awsec2.VpcProps{
+		IpAddresses: awsec2.IpAddresses_Cidr(jsii.String(props.VpcCidr)),
 		MaxAzs:      jsii.Number(2),
 		VpcName:     jsii.String("Service-" + props.Environment + "-VPC"),
+
+		// Subnetの基本構成も追加
+		SubnetConfiguration: &[]*awsec2.SubnetConfiguration{
+			{
+				Name:       jsii.String("Public"),
+				SubnetType: awsec2.SubnetType_PUBLIC,
+				CidrMask:   jsii.Number(24),
+			},
+			{
+				Name:       jsii.String("Private"),
+				SubnetType: awsec2.SubnetType_PRIVATE_WITH_EGRESS,
+				CidrMask:   jsii.Number(24),
+			},
+		},
+	})
+
+	// VPCの出力（後のstackで参照できるように）
+	awscdk.NewCfnOutput(stack, jsii.String("VpcId"), &awscdk.CfnOutputProps{
+		Value:       vpc.VpcId(),
+		Description: jsii.String("VPC ID for Service"),
+		ExportName:  jsii.String("Service-" + props.Environment + "-VpcId"),
 	})
 
 	return stack

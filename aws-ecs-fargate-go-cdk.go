@@ -9,6 +9,7 @@
 package main
 
 import (
+	"aws-ecs-fargate-go-cdk/internal/stacks"
 	"fmt"
 
 	"github.com/aws/aws-cdk-go/awscdk/v2"
@@ -45,11 +46,13 @@ func main() {
 
 	app := awscdk.NewApp(nil)
 
-	NewAwsEcsFargateGoCdkStack(app, "AwsEcsFargateGoCdkStack", &AwsEcsFargateGoCdkStackProps{
-		awscdk.StackProps{
-			Env: env(),
-		},
-	})
+	// NewAwsEcsFargateGoCdkStack(app, "AwsEcsFargateGoCdkStack", &AwsEcsFargateGoCdkStackProps{
+	// 	awscdk.StackProps{
+	// 		Env: env(),
+	// 	},
+	// })
+
+	stacks.NewNetworkStack(app, "NetworkStack", &stacks.NetworkStackProps{})
 
 	app.Synth(nil)
 }
