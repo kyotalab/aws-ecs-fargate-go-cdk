@@ -30,6 +30,12 @@ func (v *VPCAssertions) HasInternetGateway() *VPCAssertions {
 	return v
 }
 
+// HasNATGateways 指定された数のNAT Gatewayが存在することを確認
+func (v *VPCAssertions) HasNATGateways(count int) *VPCAssertions {
+	v.template.ResourceCountIs(jsii.String("AWS::EC2::NatGateway"), jsii.Number(count))
+	return v
+}
+
 // ECSAssertions ECSリソースのアサーション
 type ECSAssertions struct {
 	template assertions.Template
