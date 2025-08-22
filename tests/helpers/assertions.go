@@ -81,3 +81,46 @@ func (r *RDSAssertions) HasEngineVersion(version string) *RDSAssertions {
 	})
 	return r
 }
+
+// SecurityGroupAssertions セキュリティグループのアサーション
+type SecurityGroupAssertions struct {
+	template assertions.Template
+}
+
+// NewSecurityGroupAssertions セキュリティグループアサーションインスタンスの作成
+func NewSecurityGroupAssertions(stack awscdk.Stack) *SecurityGroupAssertions {
+	return &SecurityGroupAssertions{
+		template: assertions.Template_FromStack(stack, nil),
+	}
+}
+
+// HasSecurityGroupWithIngressRule 指定されたIngressルールを持つセキュリティグループが存在することを確認
+func (s *SecurityGroupAssertions) HasSecurityGroupWithIngressRule(port int, protocol string, cidr string) *SecurityGroupAssertions {
+	s.template.HasResourceProperties(jsii.String("AWS::EC2::SecurityGroup"), map[string]interface{}{
+		"SecurityGroupIngress": assertions.Match_ArrayWith(&[]interface{}{
+			map[string]interface{}{
+				"IpProtocol": protocol,
+				"FromPort":   port,
+				"ToPort":     port,
+				"CidrIp":     cidr,
+			},
+		}),
+	})
+	return s
+}
+
+// HasALBSecurityGroup ALB用のセキュリティグループが存在することを確認
+func (s *SecurityGroupAssertions) HasALBSecurityGroup() *SecurityGroupAssertions {
+	s.template.HasResourceProperties(jsii.String("AWS::EC2::SecurityGroup"), map[string]interface{}{
+		"GroupDescription": assertions.Match_StringLikeRegexp(jsii.String("*ALB*")),
+		"SecurityGroupIngress": assertions.Match_ArrayWith(&[]interface{}{
+			map[string]interface{}{
+				"IpProtocol": "tcp",
+				"FromPort":   80,
+				"ToPort":     80,
+				"CidrIp":     "0.0.0.0/0",
+			},
+		}),
+	})
+	return s
+}

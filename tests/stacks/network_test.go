@@ -37,88 +37,157 @@ func TestNetworkStack_BasicCreation(t *testing.T) {
 	assert.NotNil(t, stack)
 }
 
-// func TestNetworkStack(t *testing.T) {
-// 	// テーブル駆動テスト用のテストケース
-// 	testCases := []struct {
-// 		name        string
-// 		environment string
-// 		vpcCidr     string
-// 		subnetCount int
-// 	}{
-// 		{
-// 			name:        "Development Environment",
-// 			environment: "dev",
-// 			vpcCidr:     "10.0.0.0/16",
-// 			subnetCount: 4, // Public x2, Private x2
+func TestNetworkStack_EnvironmentConfigurations(t *testing.T) {
+	// テーブル駆動テスト用のテストケース
+	testCases := []struct {
+		name        string
+		environment string
+		vpcCidr     string
+		subnetCount int
+	}{
+		{
+			name:        "Development Environment",
+			environment: "dev",
+			vpcCidr:     "10.0.0.0/16",
+			subnetCount: 4, // Public x2, Private x2
 
-// 		},
-// 		{
-// 			name:        "Staging Environment",
-// 			environment: "staging",
-// 			vpcCidr:     "10.1.0.0/16",
-// 			subnetCount: 4, // Public x2, Private x2
-// 		},
-// 		{
-// 			name:        "Production Environment",
-// 			environment: "prod",
-// 			vpcCidr:     "10.2.0.0/16",
-// 			subnetCount: 4, // Public x2, Private x2
-// 		},
-// 	}
+		},
+		{
+			name:        "Staging Environment",
+			environment: "staging",
+			vpcCidr:     "10.1.0.0/16",
+			subnetCount: 4, // Public x2, Private x2
+		},
+		{
+			name:        "Production Environment",
+			environment: "prod",
+			vpcCidr:     "10.2.0.0/16",
+			subnetCount: 4, // Public x2, Private x2
+		},
+	}
 
-// 	for _, tc := range testCases {
-// 		t.Run(tc.name, func(t *testing.T) {
-// 			// Given: テスト用アプリケーション作成
-// 			app := helpers.CreateTestApp(&helpers.TestAppConfig{
-// 				Environment: tc.environment,
-// 				Region:      "ap-northeast-1",
-// 				Account:     "123456789012",
-// 			})
-// 			// When: NetworkStackを作成（実装後にコメントアウト解除）
-// 			// stack := stacks.NewNetworkStack(app, "TestNetworkStack", &stacks.NetworkStackProps{
-// 			// 	Environment: tc.environment,
-// 			// 	VpcCidr:     tc.vpcCidr,
-// 			// })
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Given: テスト用アプリケーション作成
+			app := helpers.CreateTestApp(&helpers.TestAppConfig{
+				Environment: tc.environment,
+				Region:      "ap-northeast-1",
+				Account:     "123456789012",
+			})
+			// When: NetworkStackを作成（実装後にコメントアウト解除）
+			stack := stacks.NewNetworkStack(app, "TestNetworkStack", &stacks.NetworkStackProps{
+				Environment: tc.environment,
+				VpcCidr:     tc.vpcCidr,
+			})
 
-// 			// Then: リソースの存在確認（実装後にコメントアウト解除）
-// 			// vpcAssertions := helpers.NewVPCAssertions(stack)
-// 			// vpcAssertions.HasVPCWithCIDR(tc.vpcCidr).
-// 			// 	HasSubnetCount(tc.subnetCount).
-// 			// 	HasInternetGateway()
+			// Then: 期待されるリソースが作成されることを確認
+			template := assertions.Template_FromStack(stack, nil)
 
-// 			// 現在はテスト構造のみ確認
-// 			assert.NotNil(t, app)
-// 			assert.Equal(t, tc.environment, tc.environment)
-// 		})
-// 	}
-// }
+			// VPC確認
+			template.ResourceCountIs(jsii.String("AWS::EC2::VPC"), jsii.Number(1))
+			template.HasResourceProperties(jsii.String("AWS::EC2::VPC"), map[string]interface{}{
+				"CidrBlock": tc.vpcCidr,
+			})
 
-// func TestNetworkStack_SecurityGroups(t *testing.T) {
-// 	// Given
-// 	app := helpers.CreateTestApp(&helpers.TestAppConfig{
-// 		Environment: "test",
-// 	})
+			// Subnet数確認（この時点では失敗する可能性がある = Red Phase）
+			template.ResourceCountIs(jsii.String("AWS::EC2::Subnet"), jsii.Number(tc.subnetCount))
 
-// 	// When: NetworkStackを作成
-// 	// stack := stacks.NewNetworkStack(app, "TestNetworkStack", nil)
+			// Internet Gateway確認
+			template.ResourceCountIs(jsii.String("AWS::EC2::InternetGateway"), jsii.Number(1))
 
-// 	// Then: セキュリティグループの確認
-// 	// helpers.AssertStackHasResource(t, stack, "AWS::EC2::SecurityGroup", 3)
+			vpcAssersions := helpers.NewVPCAssertions(stack)
+			vpcAssersions.HasSubnetCount(tc.subnetCount).HasInternetGateway()
 
-// 	// 現在はプレースホルダー
-// 	assert.NotNil(t, app)
-// }
+			assert.NotNil(t, stack)
+		})
+	}
+}
 
-// func TestNetworkStack_RouteTable(t *testing.T) {
-// 	// Given
-// 	app := helpers.CreateTestApp(nil)
+// 🔴 Red Phase: セキュリティグループテスト（まだ実装されていない機能）
+func TestNetworkStack_SecurityGroups(t *testing.T) {
+	// Given
+	app := helpers.CreateTestApp(&helpers.TestAppConfig{
+		Environment: "test",
+	})
 
-// 	// When: NetworkStackを作成
-// 	// stack := stacks.NewNetworkStack(app, "TestNetworkStack", nil)
+	// When: NetworkStackを作成
+	stack := stacks.NewNetworkStack(app, "TestNetworkStack", &stacks.NetworkStackProps{
+		Environment: "test",
+		VpcCidr:     "10.0.0.0/16",
+	})
 
-// 	// Then: ルートテーブルの確認
-// 	// helpers.AssertStackHasResource(t, stack, "AWS::EC2::RouteTable", 4)
+	// Then: セキュリティグループの確認
+	template := assertions.Template_FromStack(stack, nil)
 
-// 	// 現在はプレースホルダー
-// 	assert.NotNil(t, app)
-// }
+	// 期待: ALB用、ECS用、RDS用のセキュリティグループ
+	template.ResourceCountIs(jsii.String("AWS::EC2::SecurityGroup"), jsii.Number(3))
+
+	// 具体的なセキュリティグループルールの確認
+	template.HasResourceProperties(jsii.String("AWS::EC2::SecurityGroup"), map[string]interface{}{
+		"GroupDescription": "Security group for ALB",
+		"SecurityGroupIngress": []interface{}{
+			map[string]interface{}{
+				"IpProtocol": "tcp",
+				"FromPort":   80,
+				"ToPort":     80,
+				"CidrIp":     "0.0.0.0/0",
+			},
+			map[string]interface{}{
+				"IpProtocol": "tcp",
+				"FromPort":   443,
+				"ToPort":     443,
+				"CidrIp":     "0.0.0.0/0",
+			},
+		},
+	})
+
+	assert.NotNil(t, app)
+}
+
+func TestNetworkStack_RouteTables(t *testing.T) {
+	// Given
+	app := helpers.CreateTestApp(nil)
+
+	// When: NetworkStackを作成
+	stack := stacks.NewNetworkStack(app, "TestNetworkStack", &stacks.NetworkStackProps{
+		Environment: "test",
+		VpcCidr:     "10.0.0.0/16",
+	})
+
+	// Then: ルートテーブルの確認
+	template := assertions.Template_FromStack(stack, nil)
+
+	// 期待: Public用1つ、Private用2つ（AZ別） = 合計3つ + デフォルト1つ = 4つ
+	template.ResourceCountIs(jsii.String("AWS::EC2::RouteTable"), jsii.Number(4))
+
+	// NAT Gatewayの確認（各AZに1つずつ）
+	template.ResourceCountIs(jsii.String("AWS::EC2::NatGateway"), jsii.Number(2))
+
+	assert.NotNil(t, stack)
+}
+
+func TestNetworkStack_CrossStackExports(t *testing.T) {
+	// Given
+	app := helpers.CreateTestApp(&helpers.TestAppConfig{
+		Environment: "production",
+	})
+
+	// When: NetworkStackを作成
+	stack := stacks.NewNetworkStack(app, "TestNetworkStack", &stacks.NetworkStackProps{
+		Environment: "production",
+		VpcCidr:     "10.2.0.0/16",
+	})
+
+	// Then: Cross-stack出力の確認
+	template := assertions.Template_FromStack(stack, nil)
+
+	// VpcId出力の確認
+	template.HasOutput(jsii.String("VpcId"), map[string]interface{}{
+		"Description": "VPC ID for Service",
+		"Export": map[string]interface{}{
+			"Name": "Service-production-VpcId",
+		},
+	})
+
+	assert.NotNil(t, stack)
+}
