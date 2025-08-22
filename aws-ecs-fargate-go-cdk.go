@@ -31,8 +31,8 @@ func main() {
 
 	fmt.Printf("🚀 Building infrastructure for environment: %s\n", environment)
 
-	// NetworkStackを作成
-	stacks.NewNetworkStack(app, "NetworkStack", &stacks.NetworkStackProps{
+	// 1. NetworkStackを作成
+	networkStack := stacks.NewNetworkStack(app, "NetworkStack", &stacks.NetworkStackProps{
 		StackProps: awscdk.StackProps{
 			Env: env(),
 		},
@@ -40,17 +40,32 @@ func main() {
 		// VpcCidrは環境設定から自動取得される
 	})
 
-	// 将来のStackをここに追加
-	// storageStack := stacks.NewStorageStack(app, "StorageStack", &stacks.StorageStackProps{
+	// 2. StorageStackを作成（NetworkStackに依存）
+	storageStack := stacks.NewStorageStack(app, "StorageStack", &stacks.StorageStackProps{
+		StackProps: awscdk.StackProps{
+			Env: env(),
+		},
+		Environment:       environment,
+		VpcId:             "vpc-from-network-stack", // Cross-stack参照で自動解決
+		IsTestEnvironment: false,                    // 実際のデプロイ環境
+	})
+
+	// 3. 将来のApplicationStackをここに追加
+	// applicationStack := stacks.NewApplicationStack(app, "ApplicationStack", &stacks.ApplicationStackProps{
 	// 	StackProps: awscdk.StackProps{
 	// 		Env: env(),
 	// 	},
 	// 	Environment: environment,
-	// 	VpcId: networkStack.VpcId(), // Cross-stack参照
+	// 	VpcId: networkStack.VpcId(),
+	// 	DatabaseEndpoint: storageStack.DatabaseEndpoint(),
 	// })
 
 	// Stack間の依存関係を設定
-	// storageStack.AddDependency(networkStack, nil)
+	storageStack.AddDependency(networkStack, nil)
+	// applicationStack.AddDependency(storageStack, nil)
+
+	fmt.Printf("✅ NetworkStack created for environment: %s\n", environment)
+	fmt.Printf("✅ StorageStack created for environment: %s\n", environment)
 
 	app.Synth(nil)
 }
