@@ -5,6 +5,7 @@ import (
 
 	"github.com/aws/aws-cdk-go/awscdk/v2"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsapplicationautoscaling"
+	"github.com/aws/aws-cdk-go/awscdk/v2/awscloudwatch"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsec2"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsecr"
 	"github.com/aws/aws-cdk-go/awscdk/v2/awsecs"
@@ -133,7 +134,7 @@ func NewApplicationStack(scope constructs.Construct, id string, props *Applicati
 	}
 
 	// 🆕 Auto Scaling設定
-	setupAutoScaling(stack, ecsService, ecsConfig, props.Environment)
+	setupAutoScaling(ecsService, targetGroup, ecsConfig, props.Environment)
 
 	// Cross-stack出力の作成
 	createApplicationStackOutputs(stack, ecrRepository, alb, targetGroup, props.Environment)
@@ -388,6 +389,24 @@ func createContainerDefinitions(
 	// Secrets設定（機密情報用）
 	secrets := createSecretsConfiguration(stack, props)
 
+	// Nginxコンテナ（サイドカー）
+	nginxContainer := taskDefinition.AddContainer(jsii.String("nginx-web"), &awsecs.ContainerDefinitionOptions{
+		ContainerName:        jsii.String("nginx-web"),
+		Image:                awsecs.ContainerImage_FromRegistry(jsii.String("nginx:1.24-alpine"), nil),
+		MemoryReservationMiB: jsii.Number(ecsConfig.Memory * 40 / 100), // 40%をNginxに割り当て
+		Essential:            jsii.Bool(true),
+		Logging: awsecs.LogDrivers_AwsLogs(&awsecs.AwsLogDriverProps{
+			LogGroup:     logGroup,
+			StreamPrefix: jsii.String("nginx"),
+		}),
+		PortMappings: &[]*awsecs.PortMapping{
+			{
+				ContainerPort: jsii.Number(80),
+				Protocol:      awsecs.Protocol_TCP,
+			},
+		},
+	})
+
 	// PHPアプリケーションコンテナ
 	phpContainer := taskDefinition.AddContainer(jsii.String("php-app"), &awsecs.ContainerDefinitionOptions{
 		ContainerName:        jsii.String("php-app"),
@@ -410,24 +429,6 @@ func createContainerDefinitions(
 			Timeout:     awscdk.Duration_Seconds(jsii.Number(5)),
 			Retries:     jsii.Number(3),
 			StartPeriod: awscdk.Duration_Seconds(jsii.Number(60)),
-		},
-	})
-
-	// Nginxコンテナ（サイドカー）
-	nginxContainer := taskDefinition.AddContainer(jsii.String("nginx-web"), &awsecs.ContainerDefinitionOptions{
-		ContainerName:        jsii.String("nginx-web"),
-		Image:                awsecs.ContainerImage_FromRegistry(jsii.String("nginx:1.24-alpine"), nil),
-		MemoryReservationMiB: jsii.Number(ecsConfig.Memory * 40 / 100), // 40%をNginxに割り当て
-		Essential:            jsii.Bool(true),
-		Logging: awsecs.LogDrivers_AwsLogs(&awsecs.AwsLogDriverProps{
-			LogGroup:     logGroup,
-			StreamPrefix: jsii.String("nginx"),
-		}),
-		PortMappings: &[]*awsecs.PortMapping{
-			{
-				ContainerPort: jsii.Number(80),
-				Protocol:      awsecs.Protocol_TCP,
-			},
 		},
 	})
 
@@ -623,9 +624,7 @@ func createServiceDiscovery(
 		Description:   jsii.String("Service discovery for API service"),
 		DnsRecordType: awsservicediscovery.DnsRecordType_A,
 		DnsTtl:        awscdk.Duration_Seconds(jsii.Number(60)),
-		HealthCheck: &awsservicediscovery.HealthCheckConfig{
-			Type:             awsservicediscovery.HealthCheckType_HTTP,
-			ResourcePath:     jsii.String("/health"),
+		CustomHealthCheck: &awsservicediscovery.HealthCheckCustomConfig{
 			FailureThreshold: jsii.Number(3),
 		},
 	})
@@ -640,60 +639,62 @@ func createServiceDiscovery(
 
 // setupAutoScaling Auto Scaling設定
 func setupAutoScaling(
-	stack awscdk.Stack,
 	ecsService awsecs.FargateService,
+	targetGroup awselasticloadbalancingv2.ApplicationTargetGroup,
 	ecsConfig *config.ECSConfig,
 	environment string,
 ) {
-	// Auto Scalingターゲット作成
+	// タスク数の AutoScaling 対象を作成
 	scalingTarget := ecsService.AutoScaleTaskCount(&awsapplicationautoscaling.EnableScalingProps{
 		MinCapacity: jsii.Number(ecsConfig.MinCapacity),
 		MaxCapacity: jsii.Number(ecsConfig.MaxCapacity),
 	})
 
-	// CPU使用率ベースのスケーリング
+	// CPU ベース
 	scalingTarget.ScaleOnCpuUtilization(jsii.String("CpuScaling"), &awsecs.CpuUtilizationScalingProps{
 		TargetUtilizationPercent: func() *float64 {
 			if environment == "prod" {
-				return jsii.Number(70) // 本番環境は70%
+				return jsii.Number(70)
 			}
-			return jsii.Number(80) // 開発・ステージングは80%
-		}(),
-		ScaleInCooldown:  awscdk.Duration_Seconds(jsii.Number(300)), // 5分
-		ScaleOutCooldown: awscdk.Duration_Seconds(jsii.Number(300)), // 5分
-	})
-
-	// メモリ使用率ベースのスケーリング
-	scalingTarget.ScaleOnMemoryUtilization(jsii.String("MemoryScaling"), &awsecs.MemoryUtilizationScalingProps{
-		TargetUtilizationPercent: func() *float64 {
-			if environment == "prod" {
-				return jsii.Number(80) // 本番環境は80%
-			}
-			return jsii.Number(90) // 開発・ステージングは90%
+			return jsii.Number(80)
 		}(),
 		ScaleInCooldown:  awscdk.Duration_Seconds(jsii.Number(300)),
 		ScaleOutCooldown: awscdk.Duration_Seconds(jsii.Number(300)),
 	})
 
-	// カスタムメトリクス（ALB Request Count）ベースのスケーリング（本番環境のみ）
+	// メモリ ベース
+	scalingTarget.ScaleOnMemoryUtilization(jsii.String("MemoryScaling"), &awsecs.MemoryUtilizationScalingProps{
+		TargetUtilizationPercent: func() *float64 {
+			if environment == "prod" {
+				return jsii.Number(80)
+			}
+			return jsii.Number(90)
+		}(),
+		ScaleInCooldown:  awscdk.Duration_Seconds(jsii.Number(300)),
+		ScaleOutCooldown: awscdk.Duration_Seconds(jsii.Number(300)),
+	})
+
+	// 本番のみ：ALB RequestCount ベースの Step Scaling
 	if environment == "prod" {
-		scalingTarget.ScaleOnMetric(jsii.String("RequestCountScaling"), &awsapplicationautoscaling.BasicStepScalingPolicyProps{
-			Metric: awsecs.NewFargateService(stack, jsii.String("temp"), nil).MetricCpuUtilization(nil), // 実際はALBメトリクスを使用
-			ScalingSteps: &[]*awsapplicationautoscaling.ScalingInterval{
-				{
-					Upper:  jsii.Number(10),
-					Change: jsii.Number(-1),
-				},
-				{
-					Lower:  jsii.Number(50),
-					Change: jsii.Number(+1),
-				},
-				{
-					Lower:  jsii.Number(100),
-					Change: jsii.Number(+2),
-				},
-			},
+		metric := targetGroup.MetricRequestCount(&awscloudwatch.MetricOptions{
+			Period:    awscdk.Duration_Minutes(jsii.Number(1)),
+			Statistic: jsii.String("Sum"),
+			// Namespace/Dimensions は TG がよしなに設定
 		})
+
+		scalingTarget.ScaleOnMetric(jsii.String("RequestCountScaling"),
+			&awsapplicationautoscaling.BasicStepScalingPolicyProps{
+				Metric: metric,
+				ScalingSteps: &[]*awsapplicationautoscaling.ScalingInterval{
+					{Upper: jsii.Number(100), Change: jsii.Number(-1)}, // リクエスト少→-1
+					{Lower: jsii.Number(200), Change: jsii.Number(+1)}, // 200超→+1
+					{Lower: jsii.Number(400), Change: jsii.Number(+2)}, // 400超→+2
+				},
+				AdjustmentType:        awsapplicationautoscaling.AdjustmentType_CHANGE_IN_CAPACITY,
+				Cooldown:              awscdk.Duration_Minutes(jsii.Number(2)),
+				MetricAggregationType: awsapplicationautoscaling.MetricAggregationType_AVERAGE,
+			},
+		)
 	}
 }
 
